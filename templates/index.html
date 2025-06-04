@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema RAG de Procesamiento de Facturas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+        }
+
+        /* Mantener los estilos CSS proporcionados y agregar específicos para RAG */
+        .rag-message {
+            white-space: pre-wrap;
+            background-color: #f8f9fa;
+            border-left: 3px solid var(--secondary-color);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+
+        .rag-highlight {
+            background-color: #fff3cd;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background-color: var(--primary-color);">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-file-earmark-text-fill me-2"></i>Sistema RAG de Facturas
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Sección de Estado del Sistema -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-file-pdf"></i> Documentos</h5>
+                        <p class="card-text" id="doc-count">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-database"></i> Fragmentos</h5>
+                        <p class="card-text" id="chunk-count">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-diagram-3"></i> Embeddings</h5>
+                        <p class="card-text" id="embedding-count">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-receipt"></i> Facturas</h5>
+                        <p class="card-text" id="invoice-count">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sección Principal -->
+        <div class="row">
+            <!-- Columna de Chat -->
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-chat-dots"></i> Chat con Documentos
+                    </div>
+                    <div class="card-body">
+                        <div id="chat-container" style="height: 400px; overflow-y: auto;">
+                            <!-- Mensajes del chat -->
+                        </div>
+                        <div class="mt-3">
+                            <div class="input-group">
+                                <input type="text" id="userInput" class="form-control" placeholder="Escribe tu pregunta...">
+                                <button class="btn btn-primary" onclick="sendMessage()">
+                                    <i class="bi bi-send"></i> Enviar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna de Acciones -->
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-gear"></i> Acciones
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Cargar Facturas PDF</label>
+                            <input type="file" class="form-control" id="pdfUpload" multiple accept=".pdf">
+                        </div>
+                        <button class="btn btn-success w-100 mb-3" onclick="uploadPDFs()">
+                            <i class="bi bi-upload"></i> Subir Archivos
+                        </button>
+                        <button class="btn btn-warning w-100 mb-3" onclick="procesarPDFs()">
+                            <i class="bi bi-lightning-charge"></i> Procesar PDFs
+                        </button>
+                        <button class="btn btn-info w-100" onclick="crearExcel()">
+                            <i class="bi bi-file-earmark-excel"></i> Generar Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sección de Estado -->
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-info-circle"></i> Estado del Sistema
+                    </div>
+                    <div class="card-body">
+                        <div id="system-status">
+                            <p class="rag-message" id="upload-status">Esperando archivos...</p>
+                            <p class="rag-message" id="process-status">Listo para procesar</p>
+                            <div class="progress mt-3">
+                                <div class="progress-bar" id="progress-bar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Función para actualizar la interfaz
+        function updateUI(response) {
+            const chatContainer = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'rag-message';
+            messageDiv.innerHTML = response.replace(/(CAE-\d+)/g, '<span class="rag-highlight">$1</span>');
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Función para mostrar estado del sistema
+        function updateStatus(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = message;
+            element.style.color = isError ? 'var(--accent-color)' : 'inherit';
+        }
+
+        // Función para actualizar contadores
+        function updateCounters(docs, chunks, embeddings, invoices) {
+            document.getElementById('doc-count').textContent = docs;
+            document.getElementById('chunk-count').textContent = chunks;
+            document.getElementById('embedding-count').textContent = embeddings;
+            document.getElementById('invoice-count').textContent = invoices;
+        }
+        async function uploadPDFs() {
+            const input = document.getElementById('pdfUpload');
+            const statusDiv = document.getElementById('upload-status');
+            const progressBar = document.getElementById('progress-bar');
+
+            if (!input.files.length) {
+                updateStatus('upload-status', '⚠️ Selecciona al menos un archivo PDF', true);
+                return;
+            }
+
+            const formData = new FormData();
+
+            // Cambiar 'pdfs' por 'file' para coincidir con el backend
+            for (const file of input.files) {
+                formData.append('file', file); // Cambio clave aquí
+            }
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    updateStatus('upload-status', `✅ ${result.message}`);
+                    progressBar.style.width = '100%';
+                    setTimeout(() => progressBar.style.width = '0%', 2000);
+
+                    // Actualización recomendada de contadores
+                    const newCount = parseInt(document.getElementById('doc-count').textContent) + input.files.length;
+                    document.getElementById('doc-count').textContent = newCount;
+
+                } else {
+                    updateStatus('upload-status', `❌ Error del servidor: ${result.error}`, true);
+                }
+            } catch (error) {
+                updateStatus('upload-status', '❌ Error de conexión: Verifica tu red', true);
+                console.error('Error en uploadPDFs:', error);
+            }
+        }
+
+        // Función para procesar PDFs
+        async function procesarPDFs() {
+            try {
+                const response = await fetch('/procesar_pdf', { method: 'POST' });
+                const result = await response.json();
+
+                if (response.ok) {
+                    updateStatus('process-status', '✅ Procesamiento completo');
+                    updateCounters(
+                        document.getElementById('doc-count').textContent,
+                        result.chunks || 0,
+                        result.embeddings || 0,
+                        document.getElementById('invoice-count').textContent
+                    );
+                } else {
+                    updateStatus('process-status', `❌ ${result.error}`, true);
+                }
+            } catch (error) {
+                updateStatus('process-status', '❌ Error de conexión', true);
+            }
+        }
+
+        // Función para el chat
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            // Mostrar mensaje del usuario
+            const userDiv = document.createElement('div');
+            userDiv.className = 'rag-message user-message';
+            userDiv.textContent = message;
+            document.getElementById('chat-container').appendChild(userDiv);
+
+            try {
+                const response = await fetch("https://rag-facturas.onrender.com/chat", {
+                    method: "POST",
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    updateUI(data.response);
+                } else {
+                    updateUI(`❌ Error: ${data.error}`);
+                }
+            } catch (error) {
+                updateUI('❌ Error de conexión');
+            }
+
+            input.value = '';
+        }
+
+        // Función para generar y descargar Excel
+        async function crearExcel() {
+            try {
+                const response = await fetch('/crear_excel', { method: 'POST' });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    updateStatus('process-status', `❌ Error al generar Excel: ${errorText}`, true);
+                    return;
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+
+                // Nombre de archivo sugerido por el servidor o uno por defecto
+                const contentDisposition = response.headers.get('Content-Disposition');
+                const match = contentDisposition && contentDisposition.match(/filename="?([^"]+)"?/);
+                const filename = match ? match[1] : 'Reporte_Facturas_RAG.xlsx';
+
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+
+                updateStatus('process-status', `✅ Excel generado: ${filename}`);
+            } catch (error) {
+                console.error(error);
+                updateStatus('process-status', '❌ Error de conexión', true);
+            }
+        }
+    </script>
+</body>
+</html>
