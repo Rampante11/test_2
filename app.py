@@ -27,7 +27,7 @@ import json
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', os.path.join(os.getcwd(), 'rag-dataset'))
 CORS(app, origins=[
-    "https://rag-facturas.onrender.com",           # Si está todo en el mismo proyecto
+    "https://test-2-1sh8.onrender.com",           # Si está todo en el mismo proyecto
     "http://localhost:5000"
 ])# Funciones aquí:
 
