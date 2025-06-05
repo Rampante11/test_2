@@ -301,6 +301,7 @@ def crear_excel():
 
 # Configuración RAG (ajusta paths según tu estructura real)
 EMBEDDINGS_DIR = "embeddings_storage"
+EMBEDDINGS_DIR_PRELOADED = "embeddings_storage_preloaded"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 LLM_MODEL = "deepseek/deepseek-r1:free"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -322,11 +323,11 @@ def initialize_rag_system():
         rag_components["embedder"] = SentenceTransformer(EMBEDDING_MODEL)
 
         # Cargar índice FAISS y metadatos
-        if not all(os.path.exists(f"{EMBEDDINGS_DIR}/{f}") for f in ["index.faiss", "metadata.pkl"]):
+        if not all(os.path.exists(f"{EMBEDDINGS_DIR_PRELOADED}/{f}") for f in ["index.faiss", "metadata.pkl"]):
             raise FileNotFoundError("Ejecuta primero el procesamiento de PDFs")
 
-        rag_components["index"] = faiss.read_index(f"{EMBEDDINGS_DIR}/index.faiss")
-        with open(f"{EMBEDDINGS_DIR}/metadata.pkl", "rb") as f:
+        rag_components["index"] = faiss.read_index(f"{EMBEDDINGS_DIR_PRELOADED}/index.faiss")
+        with open(f"{EMBEDDINGS_DIR_PRELOADED}/metadata.pkl", "rb") as f:
             data = pickle.load(f)
             rag_components["chunks"] = data if isinstance(data, list) else data.get("chunks", [])
 
